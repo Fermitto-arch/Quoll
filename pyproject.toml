@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quoll-cli"
-version = "0.2.0"
+version = "0.3.0"
 description = "Production-grade CI, Dockerfiles, Helm charts and delivery for any repository, kept in sync with one quoll.toml"
 readme = "README.md"
 license = { text = "MIT" }

@@ -205,7 +205,7 @@ quoll ci add-step -d back     # in a workspace: the project's directory; asks wh
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/theo-mrn/Quoll
-    rev: v0.2.0
+    rev: v0.3.0
     hooks:
       - id: quoll-ci          # quoll ci update; also quoll-docker, quoll-cd
 ```
