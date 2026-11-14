@@ -38,22 +38,30 @@ def check_platform(name: Optional[str]) -> None:
         raise typer.Exit(1)
 
 
-def ensure_token(platform: str, host: Optional[str] = None) -> bool:
-    """A token for `platform` in settings: from the environment, the platform's CLI (gh, glab: the session the user
-    keeps fresh), the one stored in ~/.config/quoll, or asked."""
+def find_token(platform: str, host: Optional[str] = None) -> bool:
+    """A token for `platform` in settings, without asking: from the environment, the platform's CLI (gh, glab: the
+    session the user keeps fresh) or the one stored in ~/.config/quoll."""
     attr = f"{platform}_token"
     if getattr(settings, attr):
         return True
     token = _cli_token(platform, host) or load_stored_token(platform)
+    if token:
+        setattr(settings, attr, token)
+    return bool(token)
+
+
+def ensure_token(platform: str, host: Optional[str] = None) -> bool:
+    """A token for `platform` in settings: found (see `find_token`), or asked."""
+    if find_token(platform, host):
+        return True
+    label = platforms.get(platform).label
+    scope = "repo" if platform == "github" else "api"
+    token = ask(questionary.password(f"{label} token ({scope} scope)"))
     if not token:
-        label = platforms.get(platform).label
-        scope = "repo" if platform == "github" else "api"
-        token = ask(questionary.password(f"{label} token ({scope} scope)"))
-        if not token:
-            return False
-        save_token(token, platform)
-        console.print("[dim]Token saved to ~/.config/quoll/config.toml[/dim]")
-    setattr(settings, attr, token)
+        return False
+    save_token(token, platform)
+    console.print("[dim]Token saved to ~/.config/quoll/config.toml[/dim]")
+    setattr(settings, f"{platform}_token", token)
     return True
 
 

@@ -362,7 +362,7 @@ Every push to the default branch and every `v*` tag:
 | Runs after CI | through branch protection | always: its `publish` stage starts once every CI job passed |
 | Default registry (no secret) | GHCR, with the workflow's token | the project's container registry, with the job token |
 | Build | Buildx, GitHub Actions cache | Docker-in-Docker, a Buildx container builder; Trivy runs next to the image |
-| Signature | artifact attestations (public repositories, or GitHub Enterprise Cloud for private ones) | cosign keyless with the job's OIDC token (gitlab.com: Sigstore's public instance doesn't trust self-managed issuers) |
+| Signature | artifact attestations (public repositories, or GitHub Enterprise Cloud for private ones: `quoll cd init` turns signing off on a private repository, `--sign` keeps it) | cosign keyless with the job's OIDC token (gitlab.com: Sigstore's public instance doesn't trust self-managed issuers) |
 
 Docker Hub (`registry = "dockerhub"`) needs `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. Multi-arch images are a `platforms` entry away.
 
@@ -378,7 +378,7 @@ scan = true
 severity = ["CRITICAL", "HIGH"]
 ignore_unfixed = true
 sbom = true                       # SBOM of the image: artifact + release asset
-sign = true                       # Sigstore signature and attestations (set false on a private repo without GitHub Enterprise)
+sign = true                       # Sigstore signature and attestations (`cd init` writes false on a private GitHub repo)
 ```
 
 On GitHub, branch protection (set by `quoll ci init`) makes sure only commits that passed CI reach the default branch, and therefore the registry.

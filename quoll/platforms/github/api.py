@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import base64
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import httpx
 
@@ -45,6 +45,18 @@ class GitHubAPI(PlatformAPI):
             _raise_for_status(response, "create the repository")
             data = response.json()
             return Repo(path=data.get("full_name", name), clone_url=data["clone_url"], web_url=data.get("html_url", ""))
+
+    def is_private(self, repo: str) -> Optional[bool]:
+        """Private repositories can't hold artifact attestations without GitHub Enterprise Cloud; internal ones only
+        exist there, so they count as able to."""
+        try:
+            with github_client() as client:
+                response = client.get(f"/repos/{repo}")
+        except httpx.HTTPError:
+            return None
+        if response.is_error:
+            return None
+        return response.json().get("visibility") == "private"
 
     def set_secrets(self, repo: str, secrets: Dict[str, str]) -> None:
         """Encrypt and upload Actions secrets."""

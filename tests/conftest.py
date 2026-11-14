@@ -34,3 +34,12 @@ def make_project(tmp_path: Path) -> ProjectFactory:
         return root
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def no_github_visibility_lookup(monkeypatch):
+    """`quoll cd init` reads a github.com remote's visibility with the developer's token (gh auth token): never
+    from the tests, where the repository is unknown. Tests about it stub `is_private` themselves."""
+    from quoll.platforms.github.api import GitHubAPI
+
+    monkeypatch.setattr(GitHubAPI, "is_private", lambda self, repo: None)
