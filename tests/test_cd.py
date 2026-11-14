@@ -327,3 +327,54 @@ def test_init_again_keeps_the_manifest(make_project) -> None:
     (root / ".release-please-manifest.json").write_text('{".": "2.0.0"}\n')
     assert _quoll(*args).exit_code == 0
     assert "2.0.0" in (root / ".release-please-manifest.json").read_text()
+
+
+def _github_remote(make_project, monkeypatch, *, private, token=True):
+    """A project whose origin is a github.com repository of the given visibility; the lookups are recorded."""
+    from quoll.commands import cd as cd_command
+    from quoll.platforms.github.api import GitHubAPI
+
+    root = make_project(GO)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    subprocess.run(["git", "remote", "add", "origin", "git@github.com:acme/api.git"], cwd=root, check=True)
+    looked_up: list = []
+    monkeypatch.setattr(cd_command, "find_token", lambda platform, host=None: token)
+    monkeypatch.setattr(GitHubAPI, "is_private", lambda self, repo: looked_up.append(repo) or private)
+    return root, looked_up
+
+
+def test_private_github_repository_is_not_signed(make_project, monkeypatch, tmp_path) -> None:
+    # Artifact attestations fail on a private repository without GitHub Enterprise Cloud: "Feature not available for
+    # user-owned private repositories". The delivery would push the image, then go red.
+    root, looked_up = _github_remote(make_project, monkeypatch, private=True)
+    result = _quoll("cd", "init", "-y", "-d", str(root))
+    assert result.exit_code == 0, result.output
+    assert looked_up == ["acme/api"]
+    assert "sign = false" in (root / "quoll.toml").read_text()
+    text = (root / ".github/workflows/cd.yml").read_text()
+    assert "actions/attest" not in text and "attestations: write" not in text
+    assert "Private GitHub repository" in result.output
+    actionlint(tmp_path, text)
+
+
+@pytest.mark.parametrize("private", [False, None])  # public, or visibility unreadable
+def test_public_or_unknown_github_repository_is_signed(make_project, monkeypatch, private) -> None:
+    root, _ = _github_remote(make_project, monkeypatch, private=private)
+    assert _quoll("cd", "init", "-y", "-d", str(root)).exit_code == 0
+    assert "actions/attest" in (root / ".github/workflows/cd.yml").read_text()
+
+
+def test_visibility_is_not_looked_up_without_a_token(make_project, monkeypatch) -> None:
+    root, looked_up = _github_remote(make_project, monkeypatch, private=True, token=False)
+    assert _quoll("cd", "init", "-y", "-d", str(root)).exit_code == 0
+    assert looked_up == []
+    assert "actions/attest" in (root / ".github/workflows/cd.yml").read_text()
+
+
+@pytest.mark.parametrize("flag, signed", [("--sign", True), ("--no-sign", False)])
+def test_sign_flag_wins(make_project, monkeypatch, flag, signed) -> None:
+    # --sign: GitHub Enterprise Cloud signs private repositories too.
+    root, looked_up = _github_remote(make_project, monkeypatch, private=not signed)
+    assert _quoll("cd", "init", "-y", "-d", str(root), flag).exit_code == 0
+    assert looked_up == []
+    assert ("actions/attest" in (root / ".github/workflows/cd.yml").read_text()) is signed

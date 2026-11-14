@@ -179,8 +179,12 @@ def new(
             # Before the delivery: it deploys the charts.
             steps.append(("Kubernetes", lambda: k8s_command.init(project_dir=root, yes=True, force=False)))
         if delivery:
+            # The repository just created says its visibility: a private one on GitHub can't hold attestations
+            # (without Enterprise Cloud). Otherwise cd init looks it up from the remote.
+            sign = False if repo and private and platform == "github" else None
             steps.append(("CD", lambda: cd_command.init(
-                project_dir=root, yes=True, force=False, platform=platform, registry=None, image=None, release_pr=None
+                project_dir=root, yes=True, force=False, platform=platform, registry=None, image=None, release_pr=None,
+                sign=sign,
             )))
         for label, run in steps:
             quiet(label, run, progress)

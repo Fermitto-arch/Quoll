@@ -54,6 +54,10 @@ class PlatformAPI(ABC):
     def set_secrets(self, repo: str, secrets: Dict[str, str]) -> None:
         """Store CI secrets (GitHub) / masked CI/CD variables (GitLab) on the repository at path `repo`."""
 
+    def is_private(self, repo: str) -> Optional[bool]:
+        """Whether the repository at path `repo` is private; None when its visibility can't be read."""
+        return None
+
     def ensure_schedule(self, repo: str, branch: str, cron: str) -> bool:
         """Create or update the schedule running the security scans. False when the pipeline file already holds
         it (GitHub's `on: schedule`)."""

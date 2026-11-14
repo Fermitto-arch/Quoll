@@ -16,6 +16,7 @@ from quoll.commands._common import (
     check_files,
     check_platform,
     confirm_overwrite,
+    find_token,
     platform_option,
     resolve_dir,
     update_files,
@@ -43,6 +44,11 @@ def init(
         None, "--release-pr/--no-release-pr",
         help="GitHub: a release PR from the Conventional Commits (release-please) tags the releases (default: yes).",
     ),
+    sign: Optional[bool] = typer.Option(
+        None, "--sign/--no-sign",
+        help="Sign the image and its SBOM with Sigstore (default: yes, but no for a private GitHub repository: "
+        "artifact attestations need GitHub Enterprise Cloud there).",
+    ),
 ) -> None:
     """Write [cd] in quoll.toml and generate the delivery pipeline.
 
@@ -57,7 +63,7 @@ def init(
         raise typer.Exit(1)
     if workspace is None:
         cfg = _configure(project_dir, root, "", yes=yes, force=force, platform=platform, registry=registry,
-                         image=image, release_pr=release_pr)
+                         image=image, release_pr=release_pr, sign=sign)
         if cfg is None:
             raise typer.Exit(0)
         deliveries: List[Delivery] = [Delivery("", ".", cfg)]
@@ -74,10 +80,12 @@ def init(
             raise typer.Exit(1)
         for member in members:
             _configure(root / member, root, member_name(member), yes=yes, force=force, platform=platform,
-                       registry=registry, image=image, release_pr=release_pr)
-            # A workspace releases as a whole: asked once.
+                       registry=registry, image=image, release_pr=release_pr, sign=sign)
+            # A workspace releases as a whole, from one repository: asked once.
             if release_pr is None:
                 release_pr = _read(root / member).get("cd", {}).get("release_pr", False)
+            if sign is None and "cd" in _read(root / member):
+                sign = _read(root / member)["cd"].get("sign", True)
         deliveries = _deliveries(root)
 
     cfg = deliveries[0].cfg
@@ -124,6 +132,7 @@ def _configure(
     registry: Optional[str],
     image: Optional[str],
     release_pr: Optional[bool] = None,
+    sign: Optional[bool] = None,
 ) -> Optional[CDConfig]:
     """The [cd] of one project, asked or defaulted; saved in its quoll.toml. None when kept as it was."""
     console.print(f"\n[bold]quoll cd[/bold] — {member or project_dir.name}\n")
@@ -152,8 +161,15 @@ def _configure(
     if image is None:
         image = default_image if yes else ask(questionary.text("Image", default=default_image))
 
-    note = " (private GitHub repositories need GitHub Enterprise Cloud)" if name == "github" else ""
-    sign = True if yes else ask(questionary.confirm(f"Sign the image and its SBOM with Sigstore{note}?", default=True))
+    if sign is None:
+        private = _private_repo(name, remote)
+        if private:
+            console.print("[dim]Private GitHub repository: artifact attestations need GitHub Enterprise Cloud there, "
+                          "so signing defaults to off (--sign turns it on).[/dim]")
+        note = " (private GitHub repositories need GitHub Enterprise Cloud)" if name == "github" else ""
+        sign = not private if yes else ask(
+            questionary.confirm(f"Sign the image and its SBOM with Sigstore{note}?", default=not private)
+        )
     if name != "github":
         release_pr = False
     elif release_pr is None:
@@ -174,6 +190,15 @@ def _configure(
     if member:
         save_config(project_dir, cfg)
     return cfg
+
+
+def _private_repo(name: str, remote: Optional[platforms.Remote]) -> bool:
+    """True when the remote is a private repository on github.com, where a signed delivery would fail: artifact
+    attestations need GitHub Enterprise Cloud on private repositories. Looked up only with a token already at hand
+    (never asked); unknown counts as public."""
+    if name != "github" or remote is None or remote.host != "github.com" or not find_token("github"):
+        return False
+    return platforms.get("github").api().is_private(remote.path) is True
 
 
 @app.command()

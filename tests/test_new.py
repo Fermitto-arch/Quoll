@@ -471,3 +471,27 @@ def test_generators_in_a_container_know_the_user(tmp_path, monkeypatch) -> None:
     assert cmd[cmd.index("--user") + 1] == f"{os.getuid()}:{os.getgid()}"
     assert f"quoll:x:{os.getuid()}:{os.getgid()}:" in Path(passwd).read_text()
     assert "node:26" in cmd
+
+
+@pytest.mark.parametrize("visibility, signed", [("--private", False), ("--public", True)])
+def test_remote_repository_visibility_decides_signing(tmp_path, monkeypatch, visibility, signed) -> None:
+    from quoll.commands import new as new_command
+    from quoll.platforms.base import Repo
+    from quoll.platforms.github.api import GitHubAPI
+
+    # The "GitHub" repository is a local bare one: the push goes through, nothing leaves the machine.
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
+    created: list = []
+    monkeypatch.setattr(new_command, "ensure_token", lambda platform, host=None: True)
+    monkeypatch.setattr(
+        GitHubAPI, "create_repo",
+        lambda self, name, private=True: created.append(private) or Repo("acme/shop", str(origin), ""),
+    )
+    monkeypatch.setattr(GitHubAPI, "protect_branch", lambda self, *a, **k: [])
+    monkeypatch.setattr(GitHubAPI, "allow_release_prs", lambda self, repo: [])
+    result = runner.invoke(app, ["new", "shop", "-d", str(tmp_path), "--remote", visibility, "-y",
+                                 "--front", "none", "--back", "api", "--cd"])
+    assert result.exit_code == 0, result.output
+    assert created == [not signed]
+    assert ("actions/attest" in (tmp_path / "shop/.github/workflows/cd.yml").read_text()) is signed
