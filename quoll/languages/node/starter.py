@@ -1,7 +1,8 @@
 """A new Node.js API: Express 5 and TypeScript, tested with Vitest and Supertest, linted with ESLint.
 
 Copied from templates/express/, then `npm install` resolves the current version of each dependency (Express's
-major can be chosen: `express@4`). The Node.js version goes to .nvmrc, which the CI and the Dockerfile follow.
+version can be chosen: a major, `express@4`, or a minor, `express@4.21`). The Node.js version goes to .nvmrc,
+which the CI and the Dockerfile follow.
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ from quoll.starters import from_template
 
 DEPENDENCIES = ["express@{{version}}"]
 DEV_DEPENDENCIES = [
-    "typescript", "tsx", "@types/express@{{version}}",
+    "typescript", "tsx", "@types/express@{{major}}",
     "vitest", "@vitest/coverage-v8", "supertest", "@types/supertest",
     "eslint", "@eslint/js", "typescript-eslint", "globals", "prettier",
 ]

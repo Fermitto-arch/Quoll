@@ -1,5 +1,5 @@
 """A new React application, from Vite's own generator (create-vite, TypeScript), tested with Vitest and Testing
-Library, formatted with Prettier. React's major can be chosen: `react@18`."""
+Library, formatted with Prettier. React's version can be chosen: a major, `react@18`, or a minor, `react@18.2`."""
 from __future__ import annotations
 
 import json
@@ -10,7 +10,7 @@ from typing import List
 from quoll.languages.base import Starter, StarterOptions
 from quoll.languages.node.ci import QUOLL_FILES
 from quoll.languages.node.starter import NODE_DEFAULT
-from quoll.starters import StarterError, install_locally, run, write
+from quoll.starters import StarterError, install_locally, major_of, run, write
 
 TEST_DEPENDENCIES = ["vitest", "@vitest/coverage-v8", "jsdom", "@testing-library/react", "prettier"]
 
@@ -41,8 +41,9 @@ def create(directory: Path, options: StarterOptions) -> List[str]:
     package["scripts"]["test"] = "vitest run"
     (directory / "package.json").write_text(json.dumps(package, indent=2) + "\n")
     if options.version:
-        major = options.version
-        npm("install", "--save", f"react@{major}", f"react-dom@{major}")
+        npm("install", "--save", f"react@{options.version}", f"react-dom@{options.version}")
+        # The types follow React's majors, not each minor (no @types/react@18.1).
+        major = major_of(options.version)
         npm("install", "--save-dev", f"@types/react@{major}", f"@types/react-dom@{major}")
     npm("install", "--save-dev", *TEST_DEPENDENCIES, f"@types/node@{runtime or NODE_DEFAULT}")
     write(directory, {
