@@ -17,6 +17,12 @@ LATEST = "22"
 SUPPORTED = 3
 
 
+def has_ai_config(version: str) -> bool:
+    """Whether `ng new` of this CLI version takes --ai-config: since 20.2. A bare major gets its latest minor."""
+    parts = [int(p) for p in version.split(".")[:2]]
+    return (parts[0], parts[1] if len(parts) > 1 else 99) >= (20, 2)
+
+
 def create(directory: Path, options: StarterOptions) -> List[str]:
     version = options.version or LATEST
     major = major_of(version)
@@ -28,8 +34,8 @@ def create(directory: Path, options: StarterOptions) -> List[str]:
 
     new = [cli, "new", options.name, "--directory", ".", "--defaults", "--skip-git", "--style", "css",
            "--ssr", "false", "--package-manager", "npm"]
-    if int(major) >= 20:
-        # Options of recent CLIs: no AI tools configuration; Vitest is the default runner since 21.
+    if has_ai_config(version):
+        # No AI tools configuration. Vitest is the default runner since 21.
         new += ["--ai-config", "none"]
     ng(*new)
     # ESLint with Angular's rules: the CI's lint job runs `ng lint`.

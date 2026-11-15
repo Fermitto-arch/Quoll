@@ -542,5 +542,15 @@ def test_angular_minor(tmp_path, monkeypatch) -> None:
     ran = _recording(monkeypatch, angular)
     (tmp_path / "package.json").write_text("{}")
     angular.create(tmp_path, StarterOptions("web", "20.1", ""))
-    assert ran[0][:4] == ["npx", "-y", "@angular/cli@20.1", "new"] and "--ai-config" in ran[0]
+    assert ran[0][:4] == ["npx", "-y", "@angular/cli@20.1", "new"]
+    # --ai-config came with 20.2: 20.1's `ng new` rejects it.
+    assert "--ai-config" not in ran[0]
     assert ran[1] == ["npx", "-y", "@angular/cli@20.1", "add", "angular-eslint@20", "--skip-confirmation"]
+
+
+@pytest.mark.parametrize("version, expected", [
+    ("19", False), ("20.0", False), ("20.1", False), ("20.2", True), ("20", True), ("21.0", True), ("22", True),
+])
+def test_angular_ai_config_since_20_2(version, expected) -> None:
+    angular = importlib.import_module("quoll.languages.node.frameworks.angular.starter")
+    assert angular.has_ai_config(version) is expected
