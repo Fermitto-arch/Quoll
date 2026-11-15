@@ -1,4 +1,5 @@
-"""A new Angular application, from the official CLI of the chosen major (`angular@18`), the latest by default."""
+"""A new Angular application, from the official CLI of the chosen version (a major, `angular@20`, or a minor,
+`angular@20.1`), the latest by default."""
 from __future__ import annotations
 
 import json
@@ -9,7 +10,7 @@ from typing import List
 from quoll.languages.base import Starter, StarterOptions
 from quoll.languages.node.ci import QUOLL_FILES
 from quoll.languages.node.starter import NODE_DEFAULT
-from quoll.starters import install_locally, run, write
+from quoll.starters import install_locally, major_of, run, write
 
 LATEST = "22"
 # Angular supports its current major and the two before it (https://angular.dev/reference/releases).
@@ -17,8 +18,9 @@ SUPPORTED = 3
 
 
 def create(directory: Path, options: StarterOptions) -> List[str]:
-    major = options.version or LATEST
-    cli = f"@angular/cli@{major}"
+    version = options.version or LATEST
+    major = major_of(version)
+    cli = f"@angular/cli@{version}"
 
     def ng(*args: str) -> None:
         # Run with the asked Node.js: the CLI checks it supports it, the lockfile matches it.
@@ -31,7 +33,8 @@ def create(directory: Path, options: StarterOptions) -> List[str]:
         new += ["--ai-config", "none"]
     ng(*new)
     # ESLint with Angular's rules: the CI's lint job runs `ng lint`.
-    ng(f"@angular/cli@{major}", "add", f"angular-eslint@{major}", "--skip-confirmation")
+    # angular-eslint follows Angular's majors, with minors of its own: its major matches any of Angular's minors.
+    ng(cli, "add", f"angular-eslint@{major}", "--skip-confirmation")
     # The CLI's own files aren't all formatted the way its Prettier config says (when it has one).
     if "prettier" in (directory / "package.json").read_text():
         ng("prettier", "--write", ".")

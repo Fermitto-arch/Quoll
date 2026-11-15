@@ -73,6 +73,12 @@ def install_locally(directory: Path, version: str, command: Sequence[str], folde
     return [f"{directory.name}: run `{' '.join(command)}` there before working locally."]
 
 
+def major_of(version: str) -> str:
+    """The major of a framework version: "4.21" -> "4". Companion packages (@types/*, angular-eslint) follow the
+    framework's majors, not each of its minors: asking them for a minor they never published fails the install."""
+    return version.split(".")[0]
+
+
 def write(directory: Path, files: dict) -> None:
     for rel, content in files.items():
         path = directory / rel
@@ -93,7 +99,9 @@ def from_template(
 ):
     """A starter's `create` copying `template`, then running `commands` in the project.
 
-    In files and commands, {{name}}, {{version}} (the framework's) and {{runtime}} (the runtime's) are replaced.
+    In files and commands, {{name}}, {{version}} (the framework's, a major or a minor such as 4.21), {{major}} (its
+    major, for companion packages such as @types/* that don't publish every minor) and {{runtime}} (the runtime's)
+    are replaced.
     When the commands ran in a container, `local_install` reinstalls `local_folder` for this machine.
     Templates live next to their plugin, in templates/<starter>/. Dot files are stored without their dot (see
     `renamed`), so they don't apply to quoll's own repository.
@@ -107,9 +115,11 @@ def from_template(
     }
 
     def create(directory: Path, options: StarterOptions) -> List[str]:
+        version = options.version or version_default
         values = {
             "{{name}}": options.name,
-            "{{version}}": options.version or version_default,
+            "{{version}}": version,
+            "{{major}}": major_of(version),
             "{{runtime}}": options.runtime or runtime_default,
         }
 

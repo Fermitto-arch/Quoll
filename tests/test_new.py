@@ -2,6 +2,7 @@
 QUOLL_NEW_TESTS=run, below."""
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import subprocess
@@ -495,3 +496,51 @@ def test_remote_repository_visibility_decides_signing(tmp_path, monkeypatch, vis
     assert result.exit_code == 0, result.output
     assert created == [not signed]
     assert ("actions/attest" in (tmp_path / "shop/.github/workflows/cd.yml").read_text()) is signed
+
+
+# --------------------------------------------------------------------------- minor versions
+
+
+def test_template_major_placeholder(tmp_path) -> None:
+    """{{version}} keeps the minor asked for; {{major}} is its major, for companion packages."""
+    template = tmp_path / "template"
+    template.mkdir()
+    (template / "deps.txt").write_text("express@{{version}} @types/express@{{major}}")
+    from_template(template)(tmp_path / "out", StarterOptions("shop", "4.21", "26"))
+    assert (tmp_path / "out" / "deps.txt").read_text() == "express@4.21 @types/express@4"
+
+
+def test_express_types_follow_the_major() -> None:
+    from quoll.languages.node.starter import DEV_DEPENDENCIES
+
+    assert "@types/express@{{major}}" in DEV_DEPENDENCIES
+
+
+def _recording(monkeypatch, module) -> list:
+    """The commands a starter runs, without running them."""
+    ran: list = []
+    monkeypatch.setattr(module, "run", lambda command, *args, **kwargs: ran.append(command))
+    monkeypatch.setattr(module, "install_locally", lambda *args, **kwargs: [])
+    return ran
+
+
+def test_react_minor(tmp_path, monkeypatch) -> None:
+    react = importlib.import_module("quoll.languages.node.react")
+
+    ran = _recording(monkeypatch, react)
+    (tmp_path / "package.json").write_text(json.dumps({"name": "x", "scripts": {}}))
+    react.create(tmp_path, StarterOptions("web", "18.2", ""))
+    installs = [" ".join(c) for c in ran if c[:2] == ["npm", "install"]]
+    assert "npm install --save react@18.2 react-dom@18.2" in installs
+    # @types/react has no 18.1, 18.2 may lag: the types follow the major.
+    assert "npm install --save-dev @types/react@18 @types/react-dom@18" in installs
+
+
+def test_angular_minor(tmp_path, monkeypatch) -> None:
+    angular = importlib.import_module("quoll.languages.node.frameworks.angular.starter")
+
+    ran = _recording(monkeypatch, angular)
+    (tmp_path / "package.json").write_text("{}")
+    angular.create(tmp_path, StarterOptions("web", "20.1", ""))
+    assert ran[0][:4] == ["npx", "-y", "@angular/cli@20.1", "new"] and "--ai-config" in ran[0]
+    assert ran[1] == ["npx", "-y", "@angular/cli@20.1", "add", "angular-eslint@20", "--skip-confirmation"]
